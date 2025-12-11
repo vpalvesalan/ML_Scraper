@@ -59,7 +59,7 @@ class MercadoLivreDetail:
         with sync_playwright() as p:
             print("🚀 Iniciando Motor do Navegador...")
             
-            # Flags Anti-Detecção (Mantidas do seu script)
+            # Flags Anti-Detecção
             args = [
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -122,7 +122,7 @@ class MercadoLivreDetail:
         print(f"[*] Acessando: {url_produto}")
         page = context.new_page()
         
-        # Estrutura de dados original do seu script
+        # Estrutura de dados
         dados = {
             "url": url_produto,
             "titulo": None,
@@ -134,11 +134,13 @@ class MercadoLivreDetail:
             "n_comentarios_ult_90_dias": 0,
             "data_ultimo_review": None,
             "dias_desde_ultimo_review": None,
+            "mais_vendidos": 0,
             "resumo_ia": "Não disponível",
             "descricao": None,
             "categorias": {}, 
             "caracteristicas_completas": {},
-            "dados_vendedor": {}
+            "dados_vendedor": {}, 
+
         }
 
         try:
@@ -155,7 +157,13 @@ class MercadoLivreDetail:
                 if h1: dados['titulo'] = h1.inner_text()
             except: pass
 
-            # 1.5. Categorias
+            # 2. Mais vendido
+            try:
+                el_flag = page.query_selector('a[href*="mais-vendidos"]')
+                dados['mais_vendido'] = 1 if el_flag else 0
+            except: pass
+
+            # 3. Categorias
             try:
                 elementos_categoria = page.query_selector_all('ol.andes-breadcrumb li.andes-breadcrumb__item a')
                 if elementos_categoria:
@@ -169,7 +177,7 @@ class MercadoLivreDetail:
                             if parte.strip(): dados['categorias'][f"categoria_{i}"] = parte.strip()
             except: pass
 
-            # 1.8. Dados do Vendedor
+            # 4. Dados do Vendedor
             try:
                 el_vendedor = page.query_selector('.ui-seller-data-header__title-container span')
                 if not el_vendedor: el_vendedor = page.query_selector('.ui-seller-data-header__title-container h3')
@@ -197,7 +205,7 @@ class MercadoLivreDetail:
                 dados['dados_vendedor']['loja_oficial'] = is_loja
             except: pass
 
-            # 2. Características
+            # 5. Características
             try:
                 rows = page.query_selector_all('tr.andes-table__row')
                 for row in rows:
@@ -211,13 +219,13 @@ class MercadoLivreDetail:
                         if 'Modelo' in chave: dados['modelo'] = valor
             except: pass
 
-            # 3. Descrição e IA
+            # 6. Descrição e IA
             desc = page.query_selector('.ui-pdp-description__content')
             if desc: dados['descricao'] = desc.inner_text()
             ia_summary = page.query_selector('.ui-review-capability__summary__plain_text__summary_container')
             if ia_summary: dados['resumo_ia'] = ia_summary.inner_text()
 
-            # 5. Avaliações (Count e Num)
+            # 7. Avaliações (Count e Num)
             try:
                 lbl_avaliacoes = page.query_selector('p.ui-review-capability__rating__label')
                 if lbl_avaliacoes:
@@ -230,7 +238,7 @@ class MercadoLivreDetail:
                     if nums: dados['num_comentarios'] = int(nums[0])
             except: pass
 
-            # 6. Reviews (Lógica Simplificada e Robusta)
+            # 8. Reviews
             print("      Buscando reviews...")
             page.evaluate("window.scrollBy(0, 500)")
             
@@ -339,10 +347,9 @@ class MercadoLivreDetail:
                     print("      [AVISO] Nenhuma data encontrada no modo inline.")
 
             # --- ADAPTAÇÃO PARA RETORNO DO BANCO DE DADOS ---
-            # Separamos os dados do Vendedor dos dados do Produto
             seller_payload = dados.get('dados_vendedor', {})
             
-            # Mapeamos as chaves do seu script 'dados' para as chaves esperadas pelo DatabaseManager.upsert_product_details
+            # Mapeamos as chaves para as chaves esperadas pelo DatabaseManager.upsert_product_details
             product_payload = {
                 'marca': dados.get('marca'),
                 'modelo': dados.get('modelo'),
@@ -352,6 +359,7 @@ class MercadoLivreDetail:
                 'num_avaliacoes': dados.get('num_avaliacoes'),
                 'data_ultimo_review': dados.get('data_ultimo_review'),
                 'dias_desde_ultimo_review': dados.get('dias_desde_ultimo_review'),
+                'mais_vendido': dados.get('mais_vendido'),
                 'resumo_ia': dados.get('resumo_ia'),
                 'descricao': dados.get('descricao'),
                 

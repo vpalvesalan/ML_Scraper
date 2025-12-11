@@ -44,7 +44,14 @@ def configurar_parser():
         default=0.0, 
         help="Nota mínima (0 a 5) para selecionar itens."
     )
-    
+
+    parser.add_argument(
+        '--min-sales', 
+        type=int, 
+        default=0, 
+        help="Quantidade mínima de vendas."
+    )
+
     parser.add_argument(
         '--limit', 
         type=int, 
@@ -83,14 +90,15 @@ def executar_busca(db, termos, paginas):
     search_bot = MercadoLivreSearch(db)
     search_bot.run(termos, pages_per_term=paginas)
 
-def executar_enriquecimento(db, min_price, min_rating, days_since_update, search_term, only_new, limit):
+def executar_enriquecimento(db, min_price, min_rating, min_sales, days_since_update, search_term, only_new, limit):
     
     msg_termo = f", Termo='{search_term}'" if search_term else ""
-    print(f"\n[MODO DETALHE] Buscando candidatos (Preço > {min_price}, Nota > {min_rating}, Dias > {days_since_update}{msg_termo})...")
+    print(f"\n[MODO DETALHE] Buscando candidatos (Preço > {min_price}, Nota > {min_rating}, Vendas > {min_sales}, Dias > {days_since_update}{msg_termo})...")
     
     candidatos = db.get_candidates_for_enrichment(
         min_price=min_price,
         min_rating=min_rating,
+        min_sales=min_sales,
         days_since_update=days_since_update,
         search_term=search_term,
         only_new=only_new,  
@@ -124,7 +132,8 @@ def main():
         executar_enriquecimento(
             db, 
             args.min_price, 
-            args.min_rating, 
+            args.min_rating,
+            args.min_sales, 
             args.days_since_update,
             args.search_term,
             args.only_new,

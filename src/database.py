@@ -2,7 +2,7 @@ import sqlite3
 import json
 import os
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 class DatabaseManager:
     """
@@ -136,7 +136,8 @@ class DatabaseManager:
             
             reviews_rating_count = ?,   
             last_review_date = ?,       
-            days_since_last_review = ?, 
+            days_since_last_review = ?,
+            is_best_seller = ?, 
             ai_summary = ?,             
             description = ?, 
             
@@ -158,6 +159,7 @@ class DatabaseManager:
             details.get('num_avaliacoes', 0),       
             details.get('data_ultimo_review'),       
             details.get('dias_desde_ultimo_review'),
+            details.get('mais_vendido'),
             details.get('resumo_ia'),               
             details.get('descricao'),               
             
@@ -172,7 +174,7 @@ class DatabaseManager:
         with self._get_connection() as conn:
             conn.execute(sql_product, params)
 
-    def get_candidates_for_enrichment(self, min_price=0, min_rating=0, days_since_update=0, search_term=None, only_new=False, limit=50):
+    def get_candidates_for_enrichment(self, min_price=0, min_rating=0, min_sales=0,  days_since_update=0, search_term=None, only_new=False, limit=50):
 
         cutoff_str = (datetime.now() - timedelta(days=days_since_update)).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -193,6 +195,9 @@ class DatabaseManager:
 
         query_parts.append("AND (reviews_rating_average >= ? OR reviews_rating_average IS NULL)")
         params.append(min_rating)
+
+        query_parts.append("AND sales_qty_search >= ?")
+        params.append(min_sales)
 
         query_parts.append("AND last_updated <= ?")
         params.append(cutoff_str)
