@@ -1,6 +1,7 @@
 import time
 import random
 import re
+import validators
 from typing import List, Optional, Dict, Any
 from playwright.sync_api import sync_playwright, Page, BrowserContext
 from src.database import DatabaseManager
@@ -18,7 +19,10 @@ class MercadoLivreSearch:
         self.browser = None
         self.user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0"
         ]
 
     def __enter__(self):
@@ -81,21 +85,63 @@ class MercadoLivreSearch:
         Executa a busca iterando por termos e páginas.
         Salva os resultados diretamente no banco de dados.
         """
-        for termo in termos:
-            print(f"\n>>> Iniciando busca por: '{termo}'")
+        for termo_original in termos:
+            termo = termo_original.strip()
+            print(f"\n>>> Processando: '{termo}'")
+
+            # Define se a entrada é um termo ou um link
+            e_link = validators.url(termo)
+            if not e_link:
+                # Tenta corrigir adicionando https
+                check_link = validators.url(f"https://{termo}")
+                if check_link: 
+                    termo = f"https://{termo}"
+                    e_link = True
+
+            if e_link:                
+                if "mercadolivre.com" not in termo.lower():
+                    continue
+                print(f"   -> Link válido identificado.")
+
+                # Se for link "mais vendidos", limita a 1 página
+                if "mais-vendidos" in termo:
+                    limite_paginas = 1
+                    print("   -> Link de 'Mais Vendidos': Paginação desativada.")
+                else:
+                    limite_paginas = paginas_por_termo 
+            else:
+                limite_paginas = paginas_por_termo
+             
             # Cria contexto novo para cada termo (rotação de UA)
             context = self.browser.new_context(user_agent=random.choice(self.user_agents))
             page = context.new_page()
             
-            termo_slug = termo.replace(" ", "-")
+            termo_slug = termo.replace(" ", "-") if not e_link else "link-direto"
             ranking_global = 1
 
-            for i in range(paginas_por_termo):
-                offset = 1 + (i *48)
+            for i in range(limite_paginas):
+                offset = 1 + (i * 48)
+
+                # --- CONSTRUÇÃO DA URL ---
                 if i == 0:
-                    url = f"https://lista.mercadolivre.com.br/{termo_slug}_NoIndex_True"
+                    # Página 1: Se for link, usa o link processado.
+                    url = termo if e_link else f"https://lista.mercadolivre.com.br/{termo_slug}_NoIndex_True"
                 else:
-                    url = f"https://lista.mercadolivre.com.br/{termo_slug}_Desde_{offset}_NoIndex_True"
+                    # Páginas seguintes (2, 3...)
+                    if e_link:
+                        # Divide a URL na última barra "/" para inserir o _Desde_
+                        partes = termo.rsplit('/', 1)
+                        
+                        if len(partes) == 2:
+                            base_url = partes[0]
+                            resto_url = partes[1]
+                            url = f"{base_url}/_Desde_{offset}_{resto_url}"
+                        else:
+                            url = f"{termo}_Desde_{offset}"
+
+                    # Lógica para termos
+                    else:
+                        url = f"https://lista.mercadolivre.com.br/{termo_slug}_Desde_{offset}_NoIndex_True"
                 
                 print(f"   -> Acessando página {i+1} (Offset {offset})...")
                 try:
@@ -106,7 +152,6 @@ class MercadoLivreSearch:
                         page.click('button[data-testid="action:understood-button"]', timeout=1000)
                     except: pass
 
-                    # Lógica original de seleção de cards
                     cards = page.query_selector_all('.poly-card') or page.query_selector_all('.ui-search-layout__item')
                     
                     if not cards: 
@@ -117,10 +162,8 @@ class MercadoLivreSearch:
                     
                     itens_salvos = 0
                     for card in cards:
-                        # Extrai dados passando as variáveis de ranking e pagina
                         item = self._extrair_dados_card(card, ranking_global, i==0, termo)
                         if item:
-                            # Salva no Banco de Dados
                             self.db.upsert_product_from_search(item)
                             ranking_global += 1
                             itens_salvos += 1
@@ -133,7 +176,7 @@ class MercadoLivreSearch:
             
             context.close()
             time.sleep(random.uniform(3.0, 5.0))
-
+            
     def _extrair_dados_card(self, card, ranking: int, is_first_page: bool, termo_busca: str) -> Optional[Dict[str, Any]]:
         """
         Extrai dados do card mantendo.
