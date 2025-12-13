@@ -48,7 +48,9 @@ class DatabaseManager:
             reviews_rating_count INTEGER,
             last_review_date TEXT,
             days_since_last_review INTEGER,
-            ai_summary TEXT,         
+            ai_summary TEXT,
+            is_international INTEGER,
+            immediate_availability INTEGER,         
             description TEXT,              
             comments_total_available INTEGER,
             comments_fetched_count INTEGER,
@@ -126,7 +128,7 @@ class DatabaseManager:
             s_data['loja_oficial'] = 1 if s_data.get('loja_oficial') else 0
             with self._get_connection() as conn: conn.execute(sql_seller, s_data)
 
-        # 2. Update Produto (Atualizado com novos campos)
+        # 2. Update Produto
         sql_product = """
         UPDATE products SET
             brand = ?,
@@ -139,7 +141,9 @@ class DatabaseManager:
             days_since_last_review = ?,
             is_best_seller = ?, 
             ai_summary = ?,             
-            description = ?, 
+            description = ?,
+            is_international=?,
+            immediate_availability=? 
             
             comments_total_available = ?,
             comments_fetched_count = ?,
@@ -161,7 +165,9 @@ class DatabaseManager:
             details.get('dias_desde_ultimo_review'),
             details.get('mais_vendido'),
             details.get('resumo_ia'),               
-            details.get('descricao'),               
+            details.get('descricao'),
+            details.get('compra_internacional'),
+            details.get('tempo_disponibilidade'),
             
             details.get('total_disponivel', 0),
             details.get('total_baixado', 0),

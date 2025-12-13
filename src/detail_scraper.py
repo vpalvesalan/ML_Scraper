@@ -117,7 +117,6 @@ class MercadoLivreDetail:
     def _process_product(self, context: BrowserContext, url_produto: str) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Função isolada que recebe um CONTEXTO já aberto e processa UM produto.
-        Lógica idêntica ao script fornecido.
         """
         print(f"[*] Acessando: {url_produto}")
         page = context.new_page()
@@ -225,7 +224,40 @@ class MercadoLivreDetail:
             ia_summary = page.query_selector('.ui-review-capability__summary__plain_text__summary_container')
             if ia_summary: dados['resumo_ia'] = ia_summary.inner_text()
 
-            # 7. Avaliações (Count e Num)
+            # 7. Compra Internacional
+            try:
+                dados['compra_internacional'] = False
+                # Verifica se o container existe E se tem o texto "internacional" para evitar falsos positivos
+                container_inter = page.query_selector('#cbt_summary')
+                if container_inter:
+                    if "internacional" in container_inter.inner_text().lower():
+                        dados['compra_internacional'] = True
+                
+                # Fallback: Busca específica pelo ícone SVG da compra internacional
+                if not dados['compra_internacional']:
+                    if page.query_selector('.ui-pdp-icon--cbt-summary'):
+                         dados['compra_internacional'] = True
+            except:
+                dados['compra_internacional'] = False
+
+            # 10. Disponibilidade / Prazo de fabricação
+            try:
+                dados['tempo_disponibilidade'] = None
+                
+                # Estratégia: Buscar PELA COR LARANJA. 
+                # O Full usa verde ou cinza. O aviso de 'dias para disponibilidade' usa laranja.
+                el_aviso = page.query_selector('p.ui-pdp-stock-information__title.ui-pdp-color--ORANGE')
+                
+                if el_aviso:
+                    texto_aviso = el_aviso.inner_text().strip()
+                    # Validação extra de texto para garantir que não é outro aviso laranja genérico
+                    # Geralmente contém: "dias necessários", "disponível em x dias"
+                    if "dias" in texto_aviso.lower():
+                        dados['tempo_disponibilidade'] = texto_aviso
+            except:
+                dados['tempo_disponibilidade'] = None
+
+            # 8. Avaliações (Count e Num)
             try:
                 lbl_avaliacoes = page.query_selector('p.ui-review-capability__rating__label')
                 if lbl_avaliacoes:
@@ -238,7 +270,7 @@ class MercadoLivreDetail:
                     if nums: dados['num_comentarios'] = int(nums[0])
             except: pass
 
-            # 8. Reviews
+            # 9. Reviews
             print("      Buscando reviews...")
             page.evaluate("window.scrollBy(0, 500)")
             
@@ -361,6 +393,8 @@ class MercadoLivreDetail:
                 'dias_desde_ultimo_review': dados.get('dias_desde_ultimo_review'),
                 'mais_vendido': dados.get('mais_vendido'),
                 'resumo_ia': dados.get('resumo_ia'),
+                'compra_internacional': dados.get('compra_internacional'),
+                'tempo_disponibilidade': dados.get('tempo_disponibilidade'),
                 'descricao': dados.get('descricao'),
                 
                 'total_disponivel': dados.get('num_comentarios'),      
