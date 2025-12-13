@@ -143,7 +143,7 @@ class DatabaseManager:
             ai_summary = ?,             
             description = ?,
             is_international=?,
-            immediate_availability=? 
+            immediate_availability=?, 
             
             comments_total_available = ?,
             comments_fetched_count = ?,
