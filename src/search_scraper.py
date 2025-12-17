@@ -162,7 +162,7 @@ class MercadoLivreSearch:
                     
                     itens_salvos = 0
                     for card in cards:
-                        item = self._extrair_dados_card(card, ranking_global, i==0, termo)
+                        item = self._extrair_dados_card(card, ranking_global, i==0, termo if not e_link else None, termo if e_link  else None)
                         if item:
                             self.db.upsert_product_from_search(item)
                             ranking_global += 1
@@ -177,7 +177,7 @@ class MercadoLivreSearch:
             context.close()
             time.sleep(random.uniform(3.0, 5.0))
             
-    def _extrair_dados_card(self, card, ranking: int, is_first_page: bool, termo_busca: str) -> Optional[Dict[str, Any]]:
+    def _extrair_dados_card(self, card, ranking: int, is_first_page: bool, termo_busca: str, termo_link: str) -> Optional[Dict[str, Any]]:
         """
         Extrai dados do card mantendo.
         """
@@ -201,14 +201,12 @@ class MercadoLivreSearch:
             orig_el = card.query_selector('.poly-component__price s .andes-money-amount__fraction, .ui-search-price__original-value .price-tag-fraction')
             preco_original = self._limpar_preco(orig_el.inner_text()) if orig_el else preco_atual
 
-            # Flags e Textos
+            # Flags
             txt = card.inner_text().lower()
             is_ad = 'patrocinado' in txt
-            
-            # Lógica de is_full
             is_full = True if card.query_selector('.poly-component__shipped-from svg use[href="#poly_full"], .ui-search-item__fulfillment-label') else False
-            
             is_best_seller = 'mais vendido' in txt
+            is_international = 'compra internacional' in txt
 
             # Avaliação e Vendas
             avaliacao_nota = 0.0
@@ -239,7 +237,8 @@ class MercadoLivreSearch:
                 "ml_id": id_mlb,                   
                 "title": titulo,                   
                 "permalink": link.split('#')[0].split('?')[0],
-                "search_term": termo_busca,        
+                "search_term": termo_busca, 
+                "link_term": termo_link,       
                 "price_current": preco_atual,      
                 "price_original": preco_original,  
                 "is_ad": is_ad,
@@ -247,6 +246,7 @@ class MercadoLivreSearch:
                 "is_best_seller": is_best_seller,  
                 "sales_qty_search": qtd_vendida,   
                 "reviews_rating_average": avaliacao_nota,
+                "is_international": is_international,
                 "ranking_search": ranking,         
                 "is_first_page": is_first_page     
             }

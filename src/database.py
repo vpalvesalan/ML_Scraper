@@ -28,6 +28,7 @@ class DatabaseManager:
             title TEXT,
             permalink TEXT,
             search_term TEXT,
+            link_term TEXT,
             
             -- Dados de Busca
             price_current REAL,
@@ -37,6 +38,7 @@ class DatabaseManager:
             is_ad INTEGER,
             sales_qty_search INTEGER,
             reviews_rating_average REAL,
+            is_international INTEGER,
             ranking_search INTEGER,
             is_first_page INTEGER,
             
@@ -46,10 +48,9 @@ class DatabaseManager:
             specifications_json TEXT,
             categories_json TEXT,
             reviews_rating_count INTEGER,
-            last_review_date TEXT,
-            days_since_last_review INTEGER,
+            last_comment_date TEXT,
+            days_since_last_comment INTEGER,
             ai_summary TEXT,
-            is_international INTEGER,
             immediate_availability INTEGER,         
             description TEXT,              
             comments_total_available INTEGER,
@@ -81,31 +82,33 @@ class DatabaseManager:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sql = """
         INSERT INTO products (
-            ml_id, title, permalink, search_term,
+            ml_id, title, permalink, search_term, link_term,
             price_current, price_original,
             is_best_seller, is_full, is_ad, 
-            sales_qty_search, reviews_rating_average,
+            sales_qty_search, reviews_rating_average, is_international,
             ranking_search, is_first_page,
             status, last_updated
         ) VALUES (
-            :ml_id, :title, :permalink, :search_term,
+            :ml_id, :title, :permalink, :search_term, :link_term,
             :price_current, :price_original,
             :is_best_seller, :is_full, :is_ad, 
-            :sales_qty_search, :reviews_rating_average,
+            :sales_qty_search, :reviews_rating_average, :is_international,
             :ranking_search, :is_first_page,
             'DISCOVERED', :last_updated
         )
         ON CONFLICT(ml_id) DO UPDATE SET
             price_current=excluded.price_current,
+            price_original=excluded.price_original,
             sales_qty_search=excluded.sales_qty_search,
             search_term=excluded.search_term,
+            link_term=excluded.link_term,
             is_ad=excluded.is_ad,
             ranking_search=excluded.ranking_search,
             is_first_page=excluded.is_first_page,
             last_updated=excluded.last_updated;
         """
         item['last_updated'] = now
-        for f in ['is_best_seller', 'is_full', 'is_ad', 'is_first_page']:
+        for f in ['is_best_seller', 'is_full', 'is_ad', 'is_first_page', 'is_international', 'immediate_availability']:
             item[f] = 1 if item.get(f) else 0
         with self._get_connection() as conn:
             conn.execute(sql, item)
@@ -137,8 +140,8 @@ class DatabaseManager:
             categories_json = ?,
             
             reviews_rating_count = ?,   
-            last_review_date = ?,       
-            days_since_last_review = ?,
+            last_comment_date = ?,       
+            days_since_last_comment = ?,
             is_best_seller = ?, 
             ai_summary = ?,             
             description = ?,
@@ -208,7 +211,8 @@ class DatabaseManager:
         query_parts.append("AND last_updated <= ?")
         params.append(cutoff_str)
 
-        query_parts.append("ORDER BY last_updated ASC LIMIT ?")
+        # query_parts.append("ORDER BY last_updated DESC LIMIT ?")
+        query_parts.append("ORDER BY RANDOM() LIMIT ?")
         params.append(limit)
 
         sql = "\n".join(query_parts)

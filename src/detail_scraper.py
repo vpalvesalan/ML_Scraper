@@ -240,9 +240,9 @@ class MercadoLivreDetail:
             except:
                 dados['compra_internacional'] = False
 
-            # 10. Disponibilidade / Prazo de fabricação
+            # 8. Disponibilidade / Prazo de fabricação
             try:
-                dados['tempo_disponibilidade'] = None
+                dados['disponibilidade_imediata'] = True
                 
                 # Estratégia: Buscar PELA COR LARANJA. 
                 # O Full usa verde ou cinza. O aviso de 'dias para disponibilidade' usa laranja.
@@ -253,11 +253,11 @@ class MercadoLivreDetail:
                     # Validação extra de texto para garantir que não é outro aviso laranja genérico
                     # Geralmente contém: "dias necessários", "disponível em x dias"
                     if "dias" in texto_aviso.lower():
-                        dados['tempo_disponibilidade'] = texto_aviso
+                        dados['disponibilidade_imediata'] = False
             except:
-                dados['tempo_disponibilidade'] = None
+                dados['disponibilidade_imediata'] = True
 
-            # 8. Avaliações (Count e Num)
+            # 9. Número de comentários e avaliações
             try:
                 lbl_avaliacoes = page.query_selector('p.ui-review-capability__rating__label')
                 if lbl_avaliacoes:
@@ -270,7 +270,7 @@ class MercadoLivreDetail:
                     if nums: dados['num_comentarios'] = int(nums[0])
             except: pass
 
-            # 9. Reviews
+            # 10. Reviews
             print("      Buscando reviews...")
             page.evaluate("window.scrollBy(0, 500)")
             
@@ -291,7 +291,6 @@ class MercadoLivreDetail:
                         frame_reviews.wait_for_load_state("domcontentloaded")
                         time.sleep(2)
                         
-                        last_height = frame_reviews.evaluate("document.body.scrollHeight")
                         scrolls = 0
                         max_scrolls = 150
                         
@@ -378,6 +377,11 @@ class MercadoLivreDetail:
                 else:
                     print("      [AVISO] Nenhuma data encontrada no modo inline.")
 
+            # Corrigi número de comentários quando comentários coletados é mais que o total disponível
+            if  dados.get('num_comentarios', False) and dados.get('num_comentarios_coletados', False):
+                if dados.get('num_comentarios_coletados') > dados.get('num_comentarios'):
+                    dados['num_comentarios'] = dados['num_comentarios_coletados']
+
             # --- ADAPTAÇÃO PARA RETORNO DO BANCO DE DADOS ---
             seller_payload = dados.get('dados_vendedor', {})
             
@@ -394,7 +398,7 @@ class MercadoLivreDetail:
                 'mais_vendido': dados.get('mais_vendido'),
                 'resumo_ia': dados.get('resumo_ia'),
                 'compra_internacional': dados.get('compra_internacional'),
-                'tempo_disponibilidade': dados.get('tempo_disponibilidade'),
+                'disponibilidade_imediata': dados.get('disponibilidade_imediata'),
                 'descricao': dados.get('descricao'),
                 
                 'total_disponivel': dados.get('num_comentarios'),      
